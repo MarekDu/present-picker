@@ -1,19 +1,87 @@
 import yaml
 import random
+import os
 from collections import defaultdict
 
-def read_yaml(file_path):
+def read_yaml(input_file):
     """Wczytuje dane z pliku YAML."""
-    with open(file_path, 'r', encoding='utf-8') as file:
+    with open(input_file, 'r', encoding='utf-8') as file:
         return yaml.safe_load(file)
 
-def write_yaml(data, file_path):
-    """Zapisuje dane do pliku YAML."""
-    with open(file_path, 'w', encoding='utf-8') as file:
-        yaml.dump(data, file, allow_unicode=True, sort_keys=False)
+def write_txt_files(data, output_folder="output"):
+    """Zapisuje dane końcowe do plików .txt, gdzie nazwy plików to wartości 'Imię'."""
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for person in data:
+        name = person['Imię']
+        filename = os.path.join(output_folder, f"{name}.txt")
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.write(f"Imię: {name}\n")
+            file.write("Linki:\n")
+            for link in person['Linki']:
+                file.write(f"  - Link: {link['Link']}, Cena: {link['Cena']}\n")
+            file.write("Współdzielone linki:\n")
+            for shared in person['Współdzielone']:
+                file.write(f"  - Link: {shared['Link']}, Cena: {shared['Cena']}, Współdzielone z: {', '.join(shared['Współdzielone z'])}\n")
+            file.write(f"Suma końcowa: {person['Suma końcowa']}\n")
+
+def assign_standard_link(item, assigned, max_price):
+    """Przypisuje standardowe linki, które mieszczą się w limicie, uwzględniając równomierność."""
+    best_candidate = None
+    best_score = float('inf')
+
+    for name, links in assigned.items():
+        total_price = sum(link['price'] for link in links)
+        num_links = len(links)
+        score = total_price + num_links * 10  # Kombinacja sumy cen i liczby linków
+        if total_price + item['price'] <= max_price and score < best_score:
+            best_score = score
+            best_candidate = name
+
+    if best_candidate is not None:
+        assigned[best_candidate].append(item)
+    else:
+        assigned[item['name']].append(item)
+
+def distribute_large_link(item, assigned, max_price):
+    """Rozdziela link o wartości przekraczającej limit, uwzględniając równomierność."""
+    totals = {
+        name: (sum(link['price'] for link in links), len(links)) for name, links in assigned.items()
+    }
+    sorted_names = sorted(totals, key=lambda x: (totals[x][0], totals[x][1]))
+
+    remaining_price = item['price']
+    for name in sorted_names:
+        if remaining_price <= 0:
+            break
+        total_price = sum(link['price'] for link in assigned[name])
+        available_space = max_price - total_price
+        if available_space > 0:
+            portion = min(available_space, remaining_price)
+            assigned[name].append({'link': item['link'], 'price': portion})
+            remaining_price -= portion
+
+def reassign_child_link(item, assigned):
+    """Przypisuje link od osoby z prefixem 'dziecko:' do innej osoby."""
+    available_names = [name for name in assigned if name != item['name']]
+    random.shuffle(available_names)
+    assigned[available_names[0]].append(item)
+
+def find_shared_links(name, links, assigned):
+    """Znajduje współdzielone linki między osobami."""
+    shared_links = defaultdict(list)
+    for link in links:
+        link_name = link['link']
+        for other_name, other_links in assigned.items():
+            if other_name != name:
+                for other_link in other_links:
+                    if other_link['link'] == link_name:
+                        shared_links[link_name].append(other_name)
+    return shared_links
 
 def redistribute_links(data, max_price=600):
-    """Redistribuuje linki między osobami zgodnie z regułami."""
+    """Redistribuuje linki między osobami, zapewniając równomierne przypisanie dla każdej osoby."""
     all_links = []  # Wszystkie linki i ceny
     assigned = defaultdict(list)  # Nowe przypisania
     excluded = set()  # Osoby, które mają "dziecko: imię"
@@ -25,14 +93,23 @@ def redistribute_links(data, max_price=600):
         price = entry.get('Cena')
         if isinstance(price, str) and 'zł' in price:
             price = int(price.replace('zł', '').strip())
-        entry['Cena'] = price  # Upewniamy się, że cena to liczba
+        elif isinstance(price, int):
+            pass
+        else:
+            continue  # Ignoruj niepoprawne ceny
 
-        # Jeśli to dziecko, dodaj do wyjątków
+        # Dodaj linki do listy
         if 'dziecko:' in name.lower():
             excluded.add(name)
             all_links.append({'name': name, 'link': link, 'price': price, 'is_child': True})
         else:
             all_links.append({'name': name, 'link': link, 'price': price, 'is_child': False})
+
+    # Upewnij się, że każda osoba w danych wejściowych jest uwzględniona, nawet jeśli nie ma linków
+    for entry in data:
+        name = entry.get('Imię')
+        if name not in excluded and name not in assigned:
+            assigned[name] = []
 
     # Rozdzielanie linków
     random.shuffle(all_links)  # Losowa kolejność linków
@@ -62,55 +139,16 @@ def redistribute_links(data, max_price=600):
 
     return result
 
-def assign_standard_link(item, assigned, max_price):
-    """Przypisuje standardowe linki, które mieszczą się w limicie."""
-    for name, links in assigned.items():
-        total_price = sum(link['price'] for link in links)
-        if total_price + item['price'] <= max_price:
-            assigned[name].append(item)
-            return
-
-def distribute_large_link(item, assigned, max_price):
-    """Rozdziela link o wartości przekraczającej limit."""
-    # Znajdź osoby o najmniejszej sumie cen
-    totals = {name: sum(link['price'] for link in links) for name, links in assigned.items()}
-    sorted_names = sorted(totals, key=totals.get)
-
-    # Rozdziel cenę między osoby
-    remaining_price = item['price']
-    for name in sorted_names:
-        if remaining_price <= 0:
-            break
-        total_price = sum(link['price'] for link in assigned[name])
-        available_space = max_price - total_price
-        if available_space > 0:
-            portion = min(available_space, remaining_price)
-            assigned[name].append({'link': item['link'], 'price': portion})
-            remaining_price -= portion
-
-def reassign_child_link(item, assigned):
-    """Przypisuje link od dziecka do innej osoby."""
-    # Znajdź osobę o najmniejszej sumie cen
-    totals = {name: sum(link['price'] for link in links) for name, links in assigned.items()}
-    target_name = min(totals, key=totals.get)
-    assigned[target_name].append(item)
-
-def find_shared_links(name, links, assigned):
-    """Znajduje współdzielone linki."""
-    shared = defaultdict(list)
-    for link in links:
-        for other_name, other_links in assigned.items():
-            if other_name != name and any(other_link['link'] == link['link'] for other_link in other_links):
-                shared[link['link']].append(other_name)
-    return shared
 
 if __name__ == "__main__":
-    input_file = "dane/lista_prezentow.yaml"  # Plik wejściowy
-    output_file = "dane/rozpiska_prezentow.yaml"  # Plik wyjściowy
+    input_file = "data/lista_prezentow.yaml"  # Plik wejściowy
+    output_folder = "output"  # Folder wyjściowy na pliki .txt
 
     # Wczytaj dane
     try:
         data = read_yaml(input_file)
+        if not data:
+            raise ValueError("Plik YAML jest pusty lub źle sformatowany.")
     except Exception as e:
         print(f"Błąd przy wczytywaniu pliku YAML: {e}")
         exit(1)
@@ -118,13 +156,15 @@ if __name__ == "__main__":
     # Przetwórz dane
     try:
         result = redistribute_links(data)
+        if not result:
+            raise ValueError("Nie udało się przetworzyć danych - brak wyników.")
     except Exception as e:
         print(f"Błąd przy przetwarzaniu danych: {e}")
         exit(1)
 
-    # Zapisz wynik
+    # Zapisz wynik do plików .txt
     try:
-        write_yaml(result, output_file)
-        print(f"Dane zostały zapisane do pliku: {output_file}")
+        write_txt_files(result, output_folder)
+        print(f"Dane zostały zapisane do plików w folderze: {output_folder}")
     except Exception as e:
-        print(f"Błąd przy zapisywaniu pliku YAML: {e}")
+        print(f"Błąd przy zapisywaniu plików .txt: {e}")
