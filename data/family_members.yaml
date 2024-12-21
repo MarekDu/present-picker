@@ -1,0 +1,76 @@
+    family_members:
+      - name: Agnieszka
+        age: 40
+        interests:
+          - Reading
+          - Hiking
+      - name: Ania
+        age: 38
+        interests:
+          - Cooking
+          - Gardening
+      - name: Jimmy Doe
+        age: 12
+        interests:
+          - Video Games
+          - Soccer
+      - name: Karolina
+        age: 35
+        interests:
+          - Painting
+          - Traveling
+      - name: Krzysiek
+        age: 42
+        interests:
+          - Fishing
+          - Cycling
+      - name: Kuba
+        age: 15
+        interests:
+          - Basketball
+          - Chess
+      - name: Marek
+        age: 50
+        interests:
+          - Photography
+          - Cooking
+      - name: Karina
+        age: 28
+        interests:
+          - Yoga
+          - Reading
+      - name: Tomek
+        age: 33
+        interests:
+          - Running
+          - Music
+      - name: Jagna
+        age: 22
+        interests:
+          - Dancing
+          - Drawing
+      - name: Józio
+        age: 5
+        interests:
+          - Toys
+          - Cartoons
+      - name: Tosia
+        age: 8
+        interests:
+          - Singing
+          - Puzzles
+      - name: Mama
+        age: 60
+        interests:
+          - Knitting
+          - Baking
+      - name: Tata
+        age: 62
+        interests:
+          - Gardening
+          - Reading
+      - name: Jenny Doe
+        age: 10
+        interests:
+          - Drawing
+          - Ballet interests:
