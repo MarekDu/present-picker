@@ -6,6 +6,8 @@ __pycache__/
 # Ignore specific files
 lista_prezentow.xlsx
 lista_prezentow.yaml
+rozpiska_prezentow.yaml
+output/*.txt
 
 # C extensions
 *.so
